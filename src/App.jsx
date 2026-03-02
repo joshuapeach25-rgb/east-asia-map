@@ -688,12 +688,13 @@ const STORAGE_KEY = "east-asia-v7";
 export default function App() {
     const [pmap, setPmap] = useState({});
     const [factions, setFactions] = useState([
+        {id: "han", name: "Qing", color: "#6e4a04", border: "#e0a830", text: "#ffe8a0"},
+        {id: "shu", name: "Imperial Japan", color: "#721a1a", border: "#e04a4a", text: "#ffa8a8"},
+        {id: "jin", name: "Joseon Korea", color: "#501472", border: "#a04ae0", text: "#dda8ff"},
         {id: "neutral", name: "Neutral", color: "#2e2a22", border: "#6a5e44", text: "#c8b890"},
         {id: "wei", name: "Warlord1", color: "#1a4a72", border: "#4a9ae0", text: "#a8d8ff"},
         {id: "wu", name: "Warlord2", color: "#1a6030", border: "#4ae080", text: "#a8ffc4"},
-        {id: "jin", name: "Joseon Korea", color: "#501472", border: "#a04ae0", text: "#dda8ff"},
-        {id: "shu", name: "Imperial Japan", color: "#721a1a", border: "#e04a4a", text: "#ffa8a8"},
-        {id: "han", name: "Qing", color: "#6e4a04", border: "#e0a830", text: "#ffe8a0"},
+
     ]);
     const [faction, setFaction] = useState("wei");
     const [tooltip, setTooltip] = useState(null);
