@@ -684,18 +684,18 @@ const BUNDLE = {
     }
 };
 
-const FACTIONS = [
-    {id: "neutral", name: "Neutral", color: "#2e2a22", border: "#6a5e44", text: "#c8b890"},
-    {id: "wei", name: "Warlord1", color: "#1a4a72", border: "#4a9ae0", text: "#a8d8ff"},
-    {id: "wu", name: "Warlord2", color: "#1a6030", border: "#4ae080", text: "#a8ffc4"},
-    {id: "jin", name: "Warlord3", color: "#501472", border: "#a04ae0", text: "#dda8ff"},
-    {id: "shu", name: "Imperial Japan", color: "#721a1a", border: "#e04a4a", text: "#ffa8a8"},
-    {id: "han", name: "Qing", color: "#6e4a04", border: "#e0a830", text: "#ffe8a0"},
-];
 const STORAGE_KEY = "east-asia-v7";
 
 export default function App() {
     const [pmap, setPmap] = useState({});
+    const [factions, setFactions] = useState([
+        {id: "neutral", name: "Neutral", color: "#2e2a22", border: "#6a5e44", text: "#c8b890"},
+        {id: "wei", name: "Warlord1", color: "#1a4a72", border: "#4a9ae0", text: "#a8d8ff"},
+        {id: "wu", name: "Warlord2", color: "#1a6030", border: "#4ae080", text: "#a8ffc4"},
+        {id: "jin", name: "Warlord3", color: "#501472", border: "#a04ae0", text: "#dda8ff"},
+        {id: "shu", name: "Imperial Japan", color: "#721a1a", border: "#e04a4a", text: "#ffa8a8"},
+        {id: "han", name: "Qing", color: "#6e4a04", border: "#e0a830", text: "#ffe8a0"},
+    ]);
     const [faction, setFaction] = useState("wei");
     const [tooltip, setTooltip] = useState(null);
     const [msg, setMsg] = useState("");
@@ -720,9 +720,12 @@ export default function App() {
         (async () => {
             try {
                 const s = await window.storage.get(STORAGE_KEY);
-                if (s) setPmap(JSON.parse(s.value).pmap || {});
-            } catch { /* empty */
-            }
+                if (s) {
+                    const data = JSON.parse(s.value);
+                    setPmap(data.pmap || {});
+                    if (data.factions) setFactions(data.factions);
+                }
+            } catch { /* empty */ }
         })();
     }, []);
 
@@ -737,9 +740,6 @@ export default function App() {
     );
     const allProvinces = BUNDLE.provinces.features;
 
-    // Build projection
-    // fitExtent squashes East Asia because lng span >> Mercator y span.
-    // Fix: compute scale from height, use that directly.
     const {w, h} = dims;
     let proj = null, path = null;
 
@@ -759,8 +759,6 @@ export default function App() {
         const ySpan = mY(latMax) - mY(latMin);
 
         if (view === "all") {
-            // Use full-extent fitted projection for "all" view
-            // scaleByW=609 fits everything from Xinjiang(73.5E) to Japan(148.8E)
             const allScaleByH = (h - 100) / ySpan;
             const allScaleByW = (w - 100) / (75.3 * Math.PI / 180);
             const allScale = Math.min(allScaleByH, allScaleByW) * 0.95;
@@ -769,7 +767,6 @@ export default function App() {
                 .scale(allScale)
                 .translate([w / 2, h / 2]);
         } else {
-            // For Japan specifically, fit to main islands to avoid Okinawa shrinking everything
             const isJapan = view === "japan";
             const fitLatMin = isJapan ? 31.0 : latMin;
             const fitLatMax = isJapan ? 45.5 : latMax;
@@ -792,17 +789,13 @@ export default function App() {
 
     const getId = f => f.properties.name;
     const getFactionId = f => pmap[getId(f)] || "neutral";
-    const getFill = f => FACTIONS.find(x => x.id === getFactionId(f))?.color || "#2e2a22";
-    const getBorder = f => FACTIONS.find(x => x.id === getFactionId(f))?.border || "#6a5e44";
+    const getFill = f => factions.find(x => x.id === getFactionId(f))?.color || "#2e2a22";
+    const getBorder = f => factions.find(x => x.id === getFactionId(f))?.border || "#6a5e44";
     const paint = f => setPmap(p => ({...p, [getId(f)]: faction}));
 
     const counts = {};
-    FACTIONS.forEach(f => {
-        counts[f.id] = 0;
-    });
-    allProvinces.forEach(f => {
-        counts[getFactionId(f)]++;
-    });
+    factions.forEach(f => { counts[f.id] = 0; });
+    allProvinces.forEach(f => { counts[getFactionId(f)]++; });
     ["Hainan", "Jeju", "Okinawa"].forEach(name => {
         const fid = pmap[name] || "neutral";
         if (counts[fid] !== undefined) counts[fid]++;
@@ -811,7 +804,7 @@ export default function App() {
 
     const save = async () => {
         try {
-            await window.storage.set(STORAGE_KEY, JSON.stringify({pmap}));
+            await window.storage.set(STORAGE_KEY, JSON.stringify({pmap, factions}));
             setMsg("Saved ✓");
             setTimeout(() => setMsg(""), 2000);
         } catch {
@@ -822,13 +815,43 @@ export default function App() {
         try {
             const s = await window.storage.get(STORAGE_KEY);
             if (s) {
-                setPmap(JSON.parse(s.value).pmap || {});
+                const data = JSON.parse(s.value);
+                setPmap(data.pmap || {});
+                if (data.factions) setFactions(data.factions);
                 setMsg("Loaded ✓");
             } else setMsg("No save");
             setTimeout(() => setMsg(""), 2000);
         } catch {
             setMsg("Error");
         }
+    };
+
+    const renameFaction = (id, newName) => {
+        setFactions(prev => prev.map(x => x.id === id ? {...x, name: newName} : x));
+    };
+
+    const addFaction = () => {
+        const id = "faction_" + Date.now();
+        const hue = Math.floor(Math.random() * 360);
+        setFactions(prev => [...prev, {
+            id,
+            name: "New Faction",
+            color: `hsl(${hue}, 60%, 18%)`,
+            border: `hsl(${hue}, 70%, 52%)`,
+            text: `hsl(${hue}, 80%, 78%)`
+        }]);
+        setFaction(id);
+    };
+
+    const removeFaction = (id) => {
+        if (id === "neutral") return;
+        setFactions(prev => prev.filter(x => x.id !== id));
+        setPmap(prev => {
+            const next = {...prev};
+            Object.keys(next).forEach(k => { if (next[k] === id) delete next[k]; });
+            return next;
+        });
+        if (faction === id) setFaction("neutral");
     };
 
     const TAB = k => ({
@@ -866,8 +889,7 @@ export default function App() {
                     <div style={{
                         fontSize: 18, fontWeight: "bold", color: "#c8940a",
                         letterSpacing: 3, textShadow: "0 0 20px #c8940a55"
-                    }}>東亞列國志
-                    </div>
+                    }}>東亞列國志</div>
                     <div style={{fontSize: 8, color: "#6a4a14", letterSpacing: 5}}>EAST ASIA · FACTION MAP</div>
                 </div>
                 <div style={{display: "flex", gap: 4, marginLeft: 8}}>
@@ -877,12 +899,8 @@ export default function App() {
                 </div>
                 <div style={{flex: 1}}/>
                 <label style={{
-                    fontSize: 10,
-                    color: "#806030",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4
+                    fontSize: 10, color: "#806030", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4
                 }}>
                     <input type="checkbox" checked={labels} onChange={e => setLabels(e.target.checked)}
                            style={{accentColor: "#c8940a"}}/>
@@ -902,40 +920,65 @@ export default function App() {
                     overflowY: "auto", flexShrink: 0
                 }}>
                     <div style={{fontSize: 8, color: "#4a2a08", letterSpacing: 3, marginBottom: 2}}>PAINT FACTION</div>
-                    {FACTIONS.map(f => (
-                        <button key={f.id} onClick={() => setFaction(f.id)} style={{
-                            background: faction === f.id ? f.color : "rgba(255,255,255,0.025)",
-                            border: `1.5px solid ${faction === f.id ? f.border : "#221204"}`,
-                            borderRadius: 4, padding: "7px 8px", cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            boxShadow: faction === f.id ? `0 0 10px ${f.color}80` : "none",
-                            transition: "all 0.12s",
-                        }}>
-                            <div style={{display: "flex", alignItems: "center", gap: 5}}>
-                                <div style={{
-                                    width: 9, height: 9, borderRadius: 2,
-                                    background: f.color, border: `1px solid ${f.border}`, flexShrink: 0
-                                }}/>
-                                <span style={{
-                                    fontSize: 10,
-                                    color: faction === f.id ? f.text : "#906838",
-                                    fontWeight: faction === f.id ? "bold" : "normal"
-                                }}>{f.name}</span>
-                            </div>
-                            <span style={{
-                                fontSize: 9,
-                                color: faction === f.id ? f.text : "#3a1a04",
-                                background: "rgba(0,0,0,0.35)", borderRadius: 3, padding: "1px 4px"
+
+                    {factions.map(f => (
+                        <div key={f.id} style={{display: "flex", alignItems: "center", gap: 3}}>
+                            <button onClick={() => setFaction(f.id)} style={{
+                                flex: 1,
+                                background: faction === f.id ? f.color : "rgba(255,255,255,0.025)",
+                                border: `1.5px solid ${faction === f.id ? f.border : "#221204"}`,
+                                borderRadius: 4, padding: "7px 8px", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                boxShadow: faction === f.id ? `0 0 10px ${f.color}80` : "none",
+                                transition: "all 0.12s",
                             }}>
-                {counts[f.id] || 0}
-              </span>
-                        </button>
+                                <div style={{display: "flex", alignItems: "center", gap: 5}}>
+                                    <div style={{
+                                        width: 9, height: 9, borderRadius: 2,
+                                        background: f.color, border: `1px solid ${f.border}`, flexShrink: 0
+                                    }}/>
+                                    <input
+                                        value={f.name}
+                                        onChange={e => renameFaction(f.id, e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        style={{
+                                            background: "transparent", border: "none", outline: "none",
+                                            color: faction === f.id ? f.text : "#906838",
+                                            fontFamily: "inherit", fontSize: 10,
+                                            fontWeight: faction === f.id ? "bold" : "normal",
+                                            width: 72, cursor: "text",
+                                        }}
+                                    />
+                                </div>
+                                <span style={{
+                                    fontSize: 9, color: faction === f.id ? f.text : "#3a1a04",
+                                    background: "rgba(0,0,0,0.35)", borderRadius: 3, padding: "1px 4px"
+                                }}>
+                                    {counts[f.id] || 0}
+                                </span>
+                            </button>
+                            {f.id !== "neutral" && (
+                                <button
+                                    onClick={() => removeFaction(f.id)}
+                                    title="Remove faction"
+                                    style={{
+                                        background: "none", border: "1px solid #3a1204",
+                                        color: "#6a2a10", borderRadius: 3, cursor: "pointer",
+                                        fontSize: 10, padding: "2px 5px", lineHeight: 1,
+                                        flexShrink: 0,
+                                    }}>✕</button>
+                            )}
+                        </div>
                     ))}
 
+                    <button onClick={addFaction} style={{
+                        ...BTN("#080818", "#6060c0"),
+                        marginTop: 4, width: "100%", textAlign: "center"
+                    }}>+ Add Faction</button>
+
                     <div style={{marginTop: 8, paddingTop: 8, borderTop: "1px solid #180c02"}}>
-                        <div style={{fontSize: 8, color: "#4a2a08", letterSpacing: 3, marginBottom: 5}}>TERRITORY %
-                        </div>
-                        {FACTIONS.filter(f => f.id !== "neutral").map(f => {
+                        <div style={{fontSize: 8, color: "#4a2a08", letterSpacing: 3, marginBottom: 5}}>TERRITORY %</div>
+                        {factions.filter(f => f.id !== "neutral").map(f => {
                             const pct = Math.round((counts[f.id] || 0) / total * 100);
                             return (
                                 <div key={f.id} style={{marginBottom: 5}}>
@@ -946,8 +989,7 @@ export default function App() {
                                         <span>{f.name}</span>
                                         <span style={{color: f.border}}>{pct}%</span>
                                     </div>
-                                    <div
-                                        style={{height: 2, background: "#120802", borderRadius: 1, overflow: "hidden"}}>
+                                    <div style={{height: 2, background: "#120802", borderRadius: 1, overflow: "hidden"}}>
                                         <div style={{
                                             height: "100%", width: `${pct}%`,
                                             background: f.color, borderRadius: 1, transition: "width 0.3s"
@@ -988,7 +1030,6 @@ export default function App() {
                          const my = e.clientY - rect.top;
                          setZoom(z => {
                              const k2 = Math.min(12, Math.max(0.5, z.k * factor));
-                             // zoom toward mouse pointer
                              const x2 = mx - (mx - z.x) * (k2 / z.k);
                              const y2 = my - (my - z.y) * (k2 / z.k);
                              return {k: k2, x: x2, y: y2};
@@ -1020,22 +1061,23 @@ export default function App() {
                             </defs>
 
                             <g clipPath="url(#mapclip)">
-                                <g transform={'translate(${zoom.x},${zoom.y}) scale(${zoom.k})'}
+                                <g transform={`translate(${zoom.x},${zoom.y}) scale(${zoom.k})`}
                                    onMouseDown={e => {
                                        if (e.button !== 0) return;
-                                       setIsDragging(true); // Changed
+                                       setIsDragging(true);
                                        dragStart.current = {x: e.clientX - zoom.x, y: e.clientY - zoom.y};
                                        e.stopPropagation();
                                    }}
                                    onMouseMove={e => {
-                                       if (!isDragging || !dragStart.current) return; // Changed
+                                       if (!isDragging || !dragStart.current) return;
                                        setZoom(z => ({...z,
                                            x: e.clientX - dragStart.current.x,
                                            y: e.clientY - dragStart.current.y
                                        }));
                                    }}
-                                   onMouseUp={() => { setIsDragging(false); }} // Changed
-                                   style={{cursor: isDragging ? "grabbing" : zoom.k > 1 ? "grab" : "crosshair"}}> {/* Changed */}
+                                   onMouseUp={() => { setIsDragging(false); }}
+                                   style={{cursor: isDragging ? "grabbing" : zoom.k > 1 ? "grab" : "crosshair"}}>
+
                                     {view === "all" && [
                                         {x: 0.26, y: 0.84, t: "South China Sea", s: 10},
                                         {x: 0.60, y: 0.73, t: "East China Sea", s: 8},
@@ -1059,7 +1101,7 @@ export default function App() {
                                     {ISLAND_DEFS.filter(isl => !countryFilter || isl.country === countryFilter).map(isl => {
                                         const [sx, sy] = proj([isl.lng, isl.lat]);
                                         const fid = pmap[isl.name] || "neutral";
-                                        const fc = FACTIONS.find(x => x.id === fid);
+                                        const fc = factions.find(x => x.id === fid);
                                         return (
                                             <g key={isl.name}
                                                onMouseDown={() => setPmap(p => ({...p, [isl.name]: faction}))}
@@ -1067,7 +1109,7 @@ export default function App() {
                                                    if (painting) setPmap(p => ({...p, [isl.name]: faction}));
                                                    setTooltip({
                                                        x: e.clientX, y: e.clientY, name: isl.name,
-                                                       faction: FACTIONS.find(x => x.id === (pmap[isl.name] || "neutral"))?.name || "Neutral"
+                                                       faction: factions.find(x => x.id === (pmap[isl.name] || "neutral"))?.name || "Neutral"
                                                    });
                                                }}
                                                onMouseLeave={() => setTooltip(null)}>
@@ -1085,9 +1127,8 @@ export default function App() {
                                                 {labels && (
                                                     <text x={sx} y={sy - isl.h / 2 - 2} textAnchor="middle" fontSize="5"
                                                           fill="rgba(255,245,210,0.9)" stroke="rgba(0,0,0,0.8)"
-                                                          strokeWidth="0.5"
-                                                          paintOrder="stroke" fontFamily="Palatino Linotype,serif"
-                                                          pointerEvents="none">
+                                                          strokeWidth="0.5" paintOrder="stroke"
+                                                          fontFamily="Palatino Linotype,serif" pointerEvents="none">
                                                         {isl.name}
                                                     </text>
                                                 )}
@@ -1102,9 +1143,7 @@ export default function App() {
                                         const border = getBorder(feat);
                                         const name = getId(feat);
                                         let cx = 0, cy = 0;
-                                        try {
-                                            [cx, cy] = path.centroid(feat);
-                                        } catch { /* empty */ }
+                                        try { [cx, cy] = path.centroid(feat); } catch { /* empty */ }
                                         const sw = view === "all" ? 0.3 : 0.6;
                                         const fs = view === "all" ? 5 : 9;
                                         return (
@@ -1114,14 +1153,13 @@ export default function App() {
                                                    if (painting) paint(feat);
                                                    setTooltip({
                                                        x: e.clientX, y: e.clientY, name,
-                                                       faction: FACTIONS.find(x => x.id === getFactionId(feat))?.name || "Neutral"
+                                                       faction: factions.find(x => x.id === getFactionId(feat))?.name || "Neutral"
                                                    });
                                                }}
                                                onMouseLeave={() => setTooltip(null)}>
                                                 <path d={d}
                                                       fill={fill} stroke="#0a0600" strokeWidth={sw} opacity={0.88}
-                                                      fillRule="evenodd"
-                                                      style={{transition: "fill 0.12s"}}
+                                                      fillRule="evenodd" style={{transition: "fill 0.12s"}}
                                                       onMouseEnter={e => {
                                                           e.currentTarget.style.opacity = "1";
                                                           e.currentTarget.style.stroke = border;
@@ -1159,7 +1197,6 @@ export default function App() {
 
                                 </g>
                             </g>
-
                         </svg>
                     )}
 
