@@ -683,7 +683,6 @@ const BUNDLE = {
         }]
     }
 };
-
 const STORAGE_KEY = "east-asia-v7";
 
 export default function App() {
@@ -716,18 +715,18 @@ export default function App() {
         return () => ro.disconnect();
     }, []);
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
-        (async () => {
-            try {
-                const s = await window.storage.get(STORAGE_KEY);
-                if (s) {
-                    const data = JSON.parse(s.value);
-                    setPmap(data.pmap || {});
-                    if (data.factions) setFactions(data.factions);
-                }
-            } catch { /* empty */ }
-        })();
+        try {
+            const s = localStorage.getItem(STORAGE_KEY);
+            if (s) {
+                const data = JSON.parse(s);
+                if (data.pmap) setPmap(data.pmap);
+                if (data.factions) setFactions(data.factions);
+            }
+        } catch { /* empty */ }
     }, []);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const countryFilter = view === "all" ? null : view;
     const visibleOutlines = BUNDLE.outlines.features.filter(f =>
@@ -802,20 +801,21 @@ export default function App() {
     });
     const total = allProvinces.length + 3;
 
-    const save = async () => {
+    const save = () => {
         try {
-            await window.storage.set(STORAGE_KEY, JSON.stringify({pmap, factions}));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({pmap, factions}));
             setMsg("Saved ✓");
             setTimeout(() => setMsg(""), 2000);
         } catch {
             setMsg("Error");
         }
     };
-    const load = async () => {
+
+    const load = () => {
         try {
-            const s = await window.storage.get(STORAGE_KEY);
+            const s = localStorage.getItem(STORAGE_KEY);
             if (s) {
-                const data = JSON.parse(s.value);
+                const data = JSON.parse(s);
                 setPmap(data.pmap || {});
                 if (data.factions) setFactions(data.factions);
                 setMsg("Loaded ✓");
