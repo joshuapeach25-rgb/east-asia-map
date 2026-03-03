@@ -869,7 +869,7 @@ export default function App() {
     });
 
     const ISLAND_DEFS = [
-        {name: "Hainan", country: "china", lng: 109.7, lat: 19.2, w: 15, h: 11},
+        {name: "Hainan", country: "china", lng: 109.8, lat: 19.3, w: 22, h: 14},
         {name: "Jeju", country: "korea", lng: 126.55, lat: 33.38, w: 7, h: 5},
         {name: "Okinawa", country: "japan", lng: 128.05, lat: 26.52, w: 6, h: 5},
     ];
